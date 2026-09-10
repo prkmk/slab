@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Segmented Cylinder Profile</title>
+<style>
+  :root {
+    --bg: #f2f1ed;
+    --panel: #faf9f6;
+    --line: #222;
+    --muted: #777;
+    --accent: #315f8a;
+    --grid: #d9d7d1;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--line);
+    background: var(--bg);
+  }
+
+  main {
+    width: 100vw;
+    height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  .pane {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--panel);
+  }
+
+  .pane:nth-child(2), .pane:nth-child(4) { border-left: 1px solid #ccc; }
+  .pane:nth-child(3), .pane:nth-child(4) { border-top: 1px solid #ccc; }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .settings {
+    height: 100%;
+    padding: clamp(20px, 4vw, 48px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    max-width: 560px;
+  }
+
+  h1 {
+    margin: 0 0 8px;
+    font-size: 21px;
+    font-weight: 600;
+  }
+
+  .description {
+    margin: 0 0 30px;
+    max-width: 420px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .setting-group {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 18px;
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+  }
+
+  label > span:first-child { min-width: 62px; }
+
+  input[type="number"] {
+    width: 78px;
+    padding: 6px 7px;
+    border: 1px solid #bbb;
+    border-radius: 3px;
+    background: white;
+    font: inherit;
+  }
+
+  input[type="range"] { width: 180px; }
+  select, button {
+    padding: 6px 8px;
+    border: 1px solid #bbb;
+    border-radius: 3px;
+    background: white;
+    font: inherit;
+  }
+  button { cursor: pointer; }
+  button:hover { background: #f0efeb; }
+  .range-label { flex: 1; }
+  .range-value { width: 32px; color: var(--muted); font-size: 12px; }
+  .check-label input { margin: 0; }
+  .print-pieces {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 18px;
+    padding: 12px 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+  .print-pieces-title { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+  .print-pieces label { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+  .print-pieces input { margin: 0; }
+
+  .legend {
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid #ddd;
+    display: grid;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 6px;
+    border: 1.5px solid var(--line);
+    border-radius: 50%;
+    vertical-align: -1px;
+  }
+  .dot.endpoint { background: var(--accent); }
+
+  .pane-title {
+    position: absolute;
+    top: 14px;
+    left: 16px;
+    padding: 5px 7px;
+    background: rgba(250,249,246,.9);
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    pointer-events: none;
+  }
+
+  .pane-hint {
+    position: absolute;
+    left: 16px;
+    bottom: 14px;
+    padding: 7px 9px;
+    font-size: 11px;
+    color: var(--muted);
+    background: rgba(250,249,246,.9);
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    pointer-events: none;
+  }
+
+  .status {
+    position: absolute;
+    right: 16px;
+    bottom: 14px;
+    font-size: 11px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .trace-scale-group { display: none; }
+  body.trace-mode { background: #000; }
+  body.trace-mode main { display: block; }
+  body.trace-mode .pane { display: none; }
+  body.trace-mode .lattice-pane { display: block; width: 100vw; height: 100vh; background: #fff; }
+  body.trace-mode .lattice-pane canvas { width: 100vw; height: 100vh; touch-action: none; cursor: grab; }
+  body.trace-mode .lattice-pane canvas:active { cursor: grabbing; }
+  body.trace-mode .lattice-pane .pane-title,
+  body.trace-mode .lattice-pane .pane-hint { display: none; }
+  .trace-close { display:none; position:fixed; top:12px; right:12px; z-index:20; width:40px; height:40px; padding:0; border:1px solid #999; border-radius:50%; background:rgba(255,255,255,.92); color:#222; font-size:25px; line-height:38px; text-align:center; cursor:pointer; }
+  body.trace-mode .trace-close { display:block; }
+
+  /* Mobile editor layout: stack the four work areas vertically and give
+     controls and canvases enough touch area to be comfortable on a phone. */
+  @media (max-width: 700px) {
+    html, body {
+      min-height: 100%;
+      height: auto;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    main {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .pane {
+      width: 100%;
+      border: 0 !important;
+      border-bottom: 1px solid #ccc !important;
+    }
+
+    .settings-pane {
+      min-height: auto;
+      overflow: visible;
+    }
+
+    .settings {
+      width: 100%;
+      max-width: none;
+      height: auto;
+      padding: 22px 18px 26px;
+      justify-content: flex-start;
+    }
+
+    h1 { font-size: 20px; }
+    .description { margin-bottom: 22px; }
+
+    .setting-group {
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      margin-bottom: 14px;
+    }
+
+    label {
+      min-height: 42px;
+      font-size: 14px;
+    }
+
+    label > span:first-child { min-width: 70px; }
+
+    input[type="number"], select, button {
+      min-height: 42px;
+      font-size: 16px;
+    }
+
+    input[type="number"] { width: 88px; }
+    input[type="range"] { width: min(100%, 220px); height: 38px; }
+
+    button {
+      padding: 9px 12px;
+      touch-action: manipulation;
+    }
+
+    .setting-group:has(#printButton) {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .setting-group:has(#printButton) button { width: 100%; }
+
+    .print-pieces {
+      margin-top: 4px;
+      padding: 14px;
+    }
+
+    .print-pieces label {
+      min-height: 42px;
+      font-size: 14px;
+    }
+
+    .print-pieces input, .check-label input {
+      width: 20px;
+      height: 20px;
+    }
+
+    .legend {
+      margin-top: 12px;
+      padding-top: 14px;
+    }
+
+    .preview-pane { height: 52vh; min-height: 360px; }
+    #profilePane { height: 62vh; min-height: 420px; }
+    .lattice-pane { height: 70vh; min-height: 460px; }
+
+    .pane-title {
+      top: 10px;
+      left: 10px;
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+
+    .pane-hint {
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      text-align: center;
+      font-size: 11px;
+    }
+
+    .status { right: 10px; bottom: 10px; }
+
+    /* Let the page scroll when the user drags the profile background.
+       The JS captures/prevents the gesture only after it starts on a node
+       (or an existing profile edge). */
+    #profileCanvas {
+      /* Touch is handled by JS so node drags cannot become page scroll.
+         Background drags are converted into page scrolling below. */
+      touch-action: none;
+    }
+    #latticeCanvas {
+      touch-action: auto;
+    }
+    body.trace-mode #latticeCanvas {
+      touch-action: none;
+    }
+
+    body.trace-mode {
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    body.trace-mode main { height: 100vh; }
+    body.trace-mode .lattice-pane { height: 100vh; min-height: 0; }
+  }
+
+</style>
+</head>
+<body>
+
+<main>
+  <section class="pane settings-pane">
+    <div class="settings">
+      <h1>Segmented Cylinder</h1>
+      <p class="description">Define the silhouette, then unfold it into a radial slab lattice. Choose which pieces to include when printing.</p>
+
+      <div class="setting-group">
+        <label>
+          <span>Height</span>
+          <input id="heightInput" type="number" min="1" step="1" value="180">
+        </label>
+        <label>
+          <span>Segments</span>
+          <input id="segments" type="number" min="3" max="128" step="1" value="12">
+        </label>
+      </div>
+
+      <div class="setting-group">
+        <label class="range-label">
+          <span>Smooth</span>
+          <input id="smoothInput" type="range" min="0" max="100" step="1" value="0">
+        </label>
+        <div class="range-value"><span id="smoothValue">0</span>%</div>
+      </div>
+
+      <div class="setting-group">
+        <label>
+          <span>Paper</span>
+          <select id="paperOrientation">
+            <option value="portrait">A4 portrait</option>
+            <option value="landscape">A4 landscape</option>
+          </select>
+        </label>
+        <label class="check-label">
+          <input id="a4GuideToggle" type="checkbox" checked>
+          <span>A4 guide</span>
+        </label>
+      </div>
+
+      <div class="setting-group">
+        <button id="printButton" type="button">Print 1:1 A4</button>
+        <button id="traceButton" type="button">Trace on phone</button>
+      </div>
+
+      <div class="setting-group trace-scale-group">
+        <label>
+          <span>Screen scale</span>
+          <input id="screenScaleInput" type="number" min="25" max="300" step="0.1" value="100">%
+        </label>
+        <button id="calibrateButton" type="button">Calibrate 50 mm</button>
+      </div>
+
+      <div class="setting-group">
+        <label>
+          <span>Snap</span>
+          <input id="snapInput" type="number" min="1" step="1" value="10">
+        </label>
+        <label class="check-label">
+          <input id="snapToggle" type="checkbox">
+          <span>Snap to grid</span>
+        </label>
+      </div>
+
+      <div class="print-pieces">
+        <div class="print-pieces-title">Print pieces</div>
+        <label><input id="printBase" type="checkbox" checked> Base</label>
+        <label><input id="printSide" type="checkbox" checked> One side</label>
+        <label><input id="printCap" type="checkbox"> Cap</label>
+        <label><input id="printAllSides" type="checkbox"> All sides</label>
+      </div>
+
+      <div class="legend">
+        <div><span class="dot endpoint"></span> Endpoint — horizontal movement only</div>
+        <div><span class="dot point"></span> Control point — move freely</div>
+        <div>Left click a line to add · right click a point to remove</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pane preview-pane">
+    <canvas id="viewCanvas"></canvas>
+    <div class="pane-title">3D Preview</div>
+    <div class="pane-hint">Drag to rotate · scroll to zoom</div>
+  </section>
+
+  <section class="pane" id="profilePane">
+    <canvas id="profileCanvas"></canvas>
+    <div class="pane-title">Profile</div>
+    <div class="pane-hint">Left click: add · right click: remove · drag: move</div>
+    <div class="status" id="profileStatus"></div>
+  </section>
+
+  <section class="pane lattice-pane">
+    <canvas id="latticeCanvas"></canvas>
+    <div class="pane-title">2D Lattice</div>
+    <div class="pane-hint">Solid: cut outline · dashed: sector fold lines</div>
+  </section>
+</main>
+<button class="trace-close" id="traceClose" type="button" aria-label="Exit phone tracing">×</button>
+
+<script src="app.js"></script>
+</body>
+</html>
